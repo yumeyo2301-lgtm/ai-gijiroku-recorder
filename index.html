@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI議事録 - 録音</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: #f5f7fa;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      color: #2b5797;
+      margin-bottom: 4px;
+    }
+
+    .header .subtitle {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .facility-name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      text-align: center;
+      margin-bottom: 24px;
+      padding: 12px 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .meeting-type {
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 30px;
+    }
+
+    .meeting-type label {
+      display: block;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .meeting-type select {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 18px;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      background: white;
+      color: #333;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23666' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    .record-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .record-btn {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      border: none;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+
+    .record-btn .icon {
+      font-size: 48px;
+    }
+
+    .record-btn.ready {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .record-btn.ready:hover {
+      background: #c0392b;
+      transform: scale(1.03);
+    }
+
+    .record-btn.recording {
+      background: #555;
+      color: white;
+      animation: pulse 1.5s infinite;
+    }
+
+    .record-btn.uploading {
+      background: #95a5a6;
+      color: white;
+      cursor: not-allowed;
+    }
+
+    .record-btn.done {
+      background: #27ae60;
+      color: white;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.5); }
+      50% { box-shadow: 0 0 0 20px rgba(231, 76, 60, 0); }
+    }
+
+    .timer {
+      font-size: 48px;
+      font-weight: bold;
+      color: #333;
+      font-variant-numeric: tabular-nums;
+      min-height: 60px;
+    }
+
+    .timer.recording {
+      color: #e74c3c;
+    }
+
+    .status {
+      font-size: 16px;
+      color: #666;
+      text-align: center;
+      min-height: 24px;
+    }
+
+    .status.error {
+      color: #e74c3c;
+    }
+
+    .status.success {
+      color: #27ae60;
+    }
+
+    .history {
+      width: 100%;
+      max-width: 500px;
+      margin-top: 30px;
+    }
+
+    .history h3 {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .history-item {
+      background: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .history-item .name { color: #333; }
+    .history-item .time { color: #999; font-size: 12px; }
+    .history-item .check { color: #27ae60; font-size: 18px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>AI議事録システム</h1>
+    <div class="subtitle">録音して自動で議事録を作成します</div>
+  </div>
+
+  <div class="facility-name" id="facilityName">テスト保育園</div>
+
+  <div class="meeting-type">
+    <label>会議種別を選んでください</label>
+    <select id="meetingType">
+      <option value="朝礼">朝礼</option>
+      <option value="終礼">終礼</option>
+      <option value="クラス会議">クラス会議</option>
+      <option value="調理会議">調理会議</option>
+      <option value="職員会議">職員会議</option>
+      <option value="その他">その他</option>
+    </select>
+  </div>
+
+  <div class="record-area">
+    <div class="timer" id="timer">00:00</div>
+
+    <button class="record-btn ready" id="recordBtn" onclick="toggleRecording()">
+      <span class="icon">🎙️</span>
+      <span id="btnText">録音開始</span>
+    </button>
+
+    <div class="status" id="status">会議種別を選んでボタンを押してください</div>
+  </div>
+
+  <div class="history" id="historySection" style="display:none;">
+    <h3>本日の録音履歴</h3>
+    <div id="historyList"></div>
+  </div>
+
+  <script>
+    // ============================================================
+    // 設定（この2つだけ変更してください）
+    // ============================================================
+    const FACILITY_NAME = 'テスト保育園';
+    const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxS7ZbVsFflaYH5eG9THn4_vYAxtXWZmuXUOCRbhUTtAOrb074rKh6luA2B7-0U2IHo/exec';
+
+    // ============================================================
+    // 状態管理
+    // ============================================================
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let timerInterval = null;
+    let startTime = null;
+    let recordingHistory = [];
+
+    // ============================================================
+    // 録音の開始・停止
+    // ============================================================
+    async function toggleRecording() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        await startRecording();
+      }
+    }
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 44100,
+          }
+        });
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm';
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(track => track.stop());
+          handleRecordingComplete();
+        };
+
+        mediaRecorder.start(1000);
+        isRecording = true;
+        startTime = Date.now();
+
+        updateUI('recording');
+        startTimer();
+        setStatus('録音中...', '');
+
+      } catch (error) {
+        if (error.name === 'NotAllowedError') {
+          setStatus('マイクの使用が許可されていません。設定を確認してください。', 'error');
+        } else {
+          setStatus('エラー: ' + error.message, 'error');
+        }
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        isRecording = false;
+        stopTimer();
+        updateUI('uploading');
+        setStatus('アップロード中...', '');
+      }
+    }
+
+    // ============================================================
+    // 録音完了→アップロード
+    // ============================================================
+    async function handleRecordingComplete() {
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      const facilityName = document.getElementById('facilityName').textContent;
+      const meetingType = document.getElementById('meetingType').value;
+      const now = new Date();
+      const dateStr = formatDate(now);
+      const fileName = facilityName + '_' + meetingType + '_' + dateStr + '.webm';
+
+      try {
+        const base64 = await blobToBase64(blob);
+        await uploadToGAS(base64, fileName, mediaRecorder.mimeType);
+
+        updateUI('done');
+        setStatus('アップロード完了！議事録が自動生成されます', 'success');
+        addHistory(fileName, now);
+
+        setTimeout(function() {
+          updateUI('ready');
+          setStatus('会議種別を選んでボタンを押してください', '');
+        }, 3000);
+
+      } catch (error) {
+        updateUI('ready');
+        setStatus('アップロードに失敗しました: ' + error.message, 'error');
+      }
+    }
+
+    // ============================================================
+    // GASへのアップロード
+    // ============================================================
+    function uploadToGAS(base64Data, fileName, mimeType) {
+      return new Promise(function(resolve, reject) {
+        fetch(GAS_WEBAPP_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            audioData: base64Data,
+            fileName: fileName,
+            mimeType: mimeType,
+          }),
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) resolve(data);
+          else reject(new Error(data.error || 'アップロード失敗'));
+        })
+        .catch(function(err) {
+          reject(new Error('通信エラー: ' + err.message));
+        });
+      });
+    }
+
+    // ============================================================
+    // ユーティリティ
+    // ============================================================
+    function blobToBase64(blob) {
+      return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onloadend = function() {
+          var base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    function formatDate(date) {
+      var y = date.getFullYear();
+      var m = String(date.getMonth() + 1).padStart(2, '0');
+      var d = String(date.getDate()).padStart(2, '0');
+      var h = String(date.getHours()).padStart(2, '0');
+      var min = String(date.getMinutes()).padStart(2, '0');
+      return y + m + d + '_' + h + min;
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(function() {
+        var elapsed = Math.floor((Date.now() - startTime) / 1000);
+        var minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        var seconds = String(elapsed % 60).padStart(2, '0');
+        document.getElementById('timer').textContent = minutes + ':' + seconds;
+      }, 200);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function updateUI(state) {
+      var btn = document.getElementById('recordBtn');
+      var btnText = document.getElementById('btnText');
+      var timer = document.getElementById('timer');
+
+      btn.className = 'record-btn ' + state;
+      timer.className = 'timer' + (state === 'recording' ? ' recording' : '');
+
+      switch (state) {
+        case 'ready':
+          btnText.textContent = '録音開始';
+          btn.querySelector('.icon').textContent = '🎙️';
+          document.getElementById('timer').textContent = '00:00';
+          btn.disabled = false;
+          break;
+        case 'recording':
+          btnText.textContent = '停止';
+          btn.querySelector('.icon').textContent = '⏹️';
+          btn.disabled = false;
+          break;
+        case 'uploading':
+          btnText.textContent = '送信中...';
+          btn.querySelector('.icon').textContent = '📤';
+          btn.disabled = true;
+          break;
+        case 'done':
+          btnText.textContent = '完了！';
+          btn.querySelector('.icon').textContent = '✅';
+          btn.disabled = true;
+          break;
+      }
+    }
+
+    function setStatus(text, type) {
+      var el = document.getElementById('status');
+      el.textContent = text;
+      el.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    function addHistory(fileName, date) {
+      recordingHistory.unshift({ fileName: fileName, date: date });
+      renderHistory();
+    }
+
+    function renderHistory() {
+      var section = document.getElementById('historySection');
+      var list = document.getElementById('historyList');
+
+      if (recordingHistory.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      list.innerHTML = recordingHistory.map(function(item) {
+        var timeStr = item.date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        return '<div class="history-item"><div><div class="name">' + item.fileName + '</div><div class="time">' + timeStr + '</div></div><div class="check">✓</div></div>';
+      }).join('');
+    }
+
+    // 初期化
+    document.getElementById('facilityName').textContent = FACILITY_NAME;
+  </script>
+</body>
+</html>
